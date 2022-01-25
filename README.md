@@ -11,4 +11,4 @@ It uses some shell tools to do the hard lifting:
 * Xsltpoc and a stylesheet for XML to JSON conversion
 
 # How do I run this?
-Install and configure the preprequisites on your machine then run the docker-run.sh script.  There's a Dockerised version available as well which (TODO)
+You can either install and configure dependencies on your machine, or you can use the -d flag to transparently pull and run a Docker image which has the prerequisites installed.
