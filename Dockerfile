@@ -10,4 +10,4 @@ RUN chmod +x /docker-run.sh
 # Tweak security policy to allow ImageMagick to open PDFs
 RUN sed -i 's~^</policymap>$~<policy domain="coder" rights="read | write" pattern="PDF" />\n</policymap>~' /etc/ImageMagick-6/policy.xml
 
-ENTRYPOINT ["/docker-run.sh"]
+ENTRYPOINT ["/run.sh"]
