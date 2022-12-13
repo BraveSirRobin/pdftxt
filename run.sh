@@ -21,7 +21,7 @@ Usage: $0 <options>:
     -h              show this message
     -d              run as a front-end to a docker container
     -i  <pdf file>  the source pdf file
-    -j  <directory> the directory for outputs
+    -o  <directory> the directory for outputs
 EOF
 )"
 

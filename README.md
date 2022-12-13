@@ -11,4 +11,7 @@ It uses some shell tools to do the hard lifting:
 * Xsltpoc and a stylesheet for XML to JSON conversion
 
 # How do I run this?
-You can either install and configure dependencies on your machine, or you can use the -d flag to transparently pull and run a Docker image which has the prerequisites installed.
+The wrapper script can either run the local commands using packages you installed on your machine, or act as a front-end to using a Docker image which has all the required packages pre-installed.
+```bash
+./run.sh -h
+```
