@@ -9,6 +9,21 @@ function err_exit {
     exit 1
 }
 
+if [[ ! -e $(which realpath)  ]]; then
+    realpath() (
+        OURPWD=$PWD
+        cd "$(dirname "$1")"
+        LINK=$(readlink "$(basename "$1")")
+        while [ "$LINK" ]; do
+            cd "$(dirname "$LINK")"
+            LINK=$(readlink "$(basename "$1")")
+        done
+        REALPATH="$PWD/$(basename "$1")"
+        cd "$OURPWD"
+        echo "$REALPATH"
+    )
+fi
+
 XSLT=to-json.xslt
 NUM_PROCS=4
 DOCKER_IMG_REF='robinharvey/pdftxt'
@@ -79,6 +94,8 @@ function metal_run {
 }
 
 function docker_run {
+    OUT_DIR=$(realpath "${OUT_DIR}")
+    PDF=$(realpath "${PDF}")
     docker pull $DOCKER_IMG_REF
     docker run -ti \
         --mount type=bind,source=${OUT_DIR},destination=/output \
