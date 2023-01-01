@@ -1,10 +1,14 @@
 import json
+import logging
 from copy import deepcopy
 
 import structlog
 from xml.dom import pulldom
 
 #logging.basicConfig(level=logging.INFO)
+structlog.configure(
+    wrapper_class=structlog.make_filtering_bound_logger(logging.ERROR),
+)
 log = structlog.get_logger()
 
 
@@ -72,12 +76,14 @@ class Xml2Json:
                 case [pulldom.IGNORABLE_WHITESPACE, node]:
                     log.info(pulldom.IGNORABLE_WHITESPACE, node=node)
                 case None:
-                    log.info("<<out of bounds>>")
+                    log.warn("<<out of bounds>>")
                     break
         return root
 
 
 if __name__ == "__main__":
     xj = Xml2Json()
-    native = xj.to_native("test.xml")
-    log.info("eventual native", _is=native, json=json.dumps(native))
+    native = xj.to_native("sample/page-6.xml")
+    json_data = json.dumps(native)
+    log.info("eventual native", _is=native, json=json_data)
+    print(json_data)
