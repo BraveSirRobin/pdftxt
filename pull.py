@@ -84,84 +84,82 @@ class Xml2Json:
 
 
 
-class XmlToNative:
-    def __init__(self):
-        self._node_proto = Xml2Json_NodePrototype
 
-    def to_native(self, from_file: str):
-        def _push_lineage(key, item):
-            nonlocal lineage, curr_node, curr_key
-            lineage.append((key, item))
-            curr_node = item
-            curr_key = key
-        def _pop_lineage():
-            nonlocal lineage, curr_node, curr_key
-            lineage.pop()
-            if len(lineage) > 0:
-                curr_key, curr_node = lineage[-1:].pop()
-            else:
-                # log.debug("bodge?")
-                curr_key, curr_node = None, root
+def xml_to_native(from_file: str, force_list_element: str=""):
+    def _push_lineage(key, item):
+        nonlocal lineage, curr_node, curr_key
+        lineage.append((key, item))
+        curr_node = item
+        curr_key = key
+    def _pop_lineage():
+        nonlocal lineage, curr_node, curr_key
+        lineage.pop()
+        if len(lineage) > 0:
+            curr_key, curr_node = lineage[-1:].pop()
+        else:
+            # log.debug("bodge?")
+            curr_key, curr_node = None, root
 
-        xmldoc = pulldom.parse(from_file)
-        root = curr_node = {}
-        curr_key = None
-        lineage = [(None, root)]
-        while True:
-            _event = xmldoc.getEvent()
-            match _event:
-                case [pulldom.START_ELEMENT, xml_node]:
-                    myself = {} if len(xml_node.attributes) == 0 else {x: y for x, y in xml_node.attributes.items()}
-                    if xml_node.nodeName in curr_node:
-                        if isinstance(curr_node[xml_node.nodeName], list) is False:
-                            curr_node[xml_node.nodeName] = [curr_node[xml_node.nodeName]]
-                        curr_node[xml_node.nodeName].append(myself)
-                    else:
-                        curr_node[xml_node.nodeName] = myself
-                    _push_lineage(xml_node.nodeName, myself)
-                    log.debug(pulldom.START_ELEMENT, xml_node=xml_node)
-                case [pulldom.END_ELEMENT, xml_node]:
-                    _pop_lineage()
-                    log.debug(pulldom.END_ELEMENT, xml_node=xml_node)
-                case [pulldom.COMMENT, node]:
-                    # ignore
-                    log.debug(pulldom.COMMENT, node=node)
-                case [pulldom.START_DOCUMENT, node]:
-                    # ignore
-                    log.debug(pulldom.START_DOCUMENT, node=node)
-                case [pulldom.END_DOCUMENT, node]:
-                    # ignore
-                    log.debug(pulldom.END_DOCUMENT, node=node)
-                case [pulldom.CHARACTERS, node]:
-                    log.debug(pulldom.CHARACTERS, node=node)
-                    text = node.nodeValue.strip()
-                    if text == "":
+    xmldoc = pulldom.parse(from_file)
+    root = curr_node = {}
+    curr_key = None
+    lineage = [(None, root)]
+    while True:
+        _event = xmldoc.getEvent()
+        match _event:
+            case [pulldom.START_ELEMENT, xml_node]:
+                myself = {} if len(xml_node.attributes) == 0 else {x: y for x, y in xml_node.attributes.items()}
+                if xml_node.nodeName in curr_node:
+                    if isinstance(curr_node[xml_node.nodeName], list) is False:
+                        curr_node[xml_node.nodeName] = [curr_node[xml_node.nodeName]]
+                    curr_node[xml_node.nodeName].append(myself)
+                elif xml_node.nodeName == force_list_element:
+                    curr_node[xml_node.nodeName] = [myself]
+                else:
+                    curr_node[xml_node.nodeName] = myself
+                _push_lineage(xml_node.nodeName, myself)
+                log.debug(pulldom.START_ELEMENT, xml_node=xml_node)
+            case [pulldom.END_ELEMENT, xml_node]:
+                _pop_lineage()
+                log.debug(pulldom.END_ELEMENT, xml_node=xml_node)
+            case [pulldom.COMMENT, node]:
+                # ignore
+                log.debug(pulldom.COMMENT, node=node)
+            case [pulldom.START_DOCUMENT, node]:
+                # ignore
+                log.debug(pulldom.START_DOCUMENT, node=node)
+            case [pulldom.END_DOCUMENT, node]:
+                # ignore
+                log.debug(pulldom.END_DOCUMENT, node=node)
+            case [pulldom.CHARACTERS, node]:
+                log.debug(pulldom.CHARACTERS, node=node)
+                text = node.nodeValue.strip()
+                if text == "":
+                    continue
+                if isinstance(curr_node, dict):
+                    if len(curr_node) == 0:
+                        my_key = curr_key
+                        _pop_lineage()
+                        curr_node[my_key] = text
+                        _push_lineage(my_key, text)
                         continue
-                    if isinstance(curr_node, dict):
-                        if len(curr_node) == 0:
-                            my_key = curr_key
-                            _pop_lineage()
-                            curr_node[my_key] = text
-                            _push_lineage(my_key, text)
-                            continue
-                    path = [x[0] for x in lineage]
-                    raise RuntimeError("This converter does not support complex content at path " + ".".join(path))
-                case [pulldom.PROCESSING_INSTRUCTION, node]:
-                    log.debug(pulldom.PROCESSING_INSTRUCTION, node=node)
-                case [pulldom.IGNORABLE_WHITESPACE, node]:
-                    log.debug(pulldom.IGNORABLE_WHITESPACE, node=node)
-                case None:
-                    log.warn("<<out of bounds>>")
-                    break
-        return root
+                path = [x[0] for x in lineage]
+                raise RuntimeError("This converter does not support complex content at path " + ".".join(path))
+            case [pulldom.PROCESSING_INSTRUCTION, node]:
+                log.debug(pulldom.PROCESSING_INSTRUCTION, node=node)
+            case [pulldom.IGNORABLE_WHITESPACE, node]:
+                log.debug(pulldom.IGNORABLE_WHITESPACE, node=node)
+            case None:
+                log.warn("<<out of bounds>>")
+                break
+    return root
 
 
 
 
 if __name__ == "__main__":
-    xj = XmlToNative()
     #native = xj.to_native2("sample/page-6.xml")
-    native = xj.to_native("sample/page-6.xml")
+    native = xml_to_native("sample/page-6.xml", force_list_element="String")
     json_data = json.dumps(native)
     log.info("eventual native", _is=native, json=json_data)
     print(json_data)
