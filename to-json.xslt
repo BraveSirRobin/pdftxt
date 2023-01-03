@@ -78,4 +78,10 @@
     "width":<xsl:value-of select="@WIDTH"/>,
     "height":<xsl:value-of select="@HEIGHT"/>
   </xsl:template>
+
+  <xsl:template name="json-encocde">
+    <xsl:param name="input">
+    <xsl:variable name="solidus_leading" value="substring-before($input, '\')"/>
+    
+  </xsl:template>
 </xsl:stylesheet>
