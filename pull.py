@@ -186,7 +186,7 @@ if __name__ == "__main__":
     }
     native = xml_to_native(
         "sample/page-6.xml",
-        force_list_element=["String"],
+        force_list_elements=["String"],
         aliases={"SP": "String"},
         protos={"SP": prototype_sp},
     )
