@@ -1,11 +1,9 @@
 import json
 import logging
-from copy import deepcopy
 
 import structlog
 from xml.dom import pulldom
 
-#logging.basicConfig(level=logging.INFO)
 structlog.configure(
     wrapper_class=structlog.make_filtering_bound_logger(logging.ERROR),
 )
@@ -16,13 +14,21 @@ def xml_to_native(from_file: str, force_list_elements: list[str]=None, aliases: 
     """Attempt a generic mapping of the given XML document to a native Python dict/list structure.
 
     Not all valid XML will work here, complex content is not supported.  Name clashes between attributes and child
-    elements wil result in data loss - child element wins (TODO: Fix this).
+    elements wil result in data loss - child element wins (TODO: Fix this?).
+
+    - Elements are mapped to equivalently nested dicts, if there's more than one sub-element sharing a  name, the
+    resulting dict member becomes a list.
+    - Use ``force_list_elements`` to force named elements to be rendered as a list, even if there's just a single
+    named sibling.
+    - Use ``aliases`` to rename elements in the mapped dict
+    - Use protos to force a particular named element to always be mapped to a given dict structure, the default is
+    an empty dict
 
     Args:
         from_file (str): XML data is in this file
-        force_list_element (list[str], optional): Force a list type for these element names. Defaults to None.
-        aliases (dict, optional): Optional aliases to change mapped dict keys. Defaults to None.
-        protos (dict, optional): Optional prototype objects for the named elements. Defaults to None.
+        force_list_element (list[str], optional): Optional forced list map
+        aliases (dict, optional): Optional aliases map
+        protos (dict, optional): Optional prototype objects map
     """
     def _push_lineage(key, item):
         nonlocal lineage, curr_node, curr_key
@@ -35,7 +41,6 @@ def xml_to_native(from_file: str, force_list_elements: list[str]=None, aliases: 
         if len(lineage) > 0:
             curr_key, curr_node = lineage[-1:].pop()
         else:
-            # log.debug("bodge?")
             curr_key, curr_node = None, root
 
     aliases = {} if aliases is None else aliases
@@ -65,18 +70,9 @@ def xml_to_native(from_file: str, force_list_elements: list[str]=None, aliases: 
             case [pulldom.END_ELEMENT, xml_node]:
                 _pop_lineage()
                 log.debug(pulldom.END_ELEMENT, xml_node=xml_node)
-            case [pulldom.COMMENT, node]:
-                # ignore
-                log.debug(pulldom.COMMENT, node=node)
-            case [pulldom.START_DOCUMENT, node]:
-                # ignore
-                log.debug(pulldom.START_DOCUMENT, node=node)
-            case [pulldom.END_DOCUMENT, node]:
-                # ignore
-                log.debug(pulldom.END_DOCUMENT, node=node)
-            case [pulldom.CHARACTERS, node]:
-                log.debug(pulldom.CHARACTERS, node=node)
-                text = node.nodeValue.strip()
+            case [pulldom.CHARACTERS, xml_node]:
+                log.debug(pulldom.CHARACTERS, node=xml_node)
+                text = xml_node.nodeValue.strip()
                 if text == "":
                     continue
                 if isinstance(curr_node, dict):
@@ -88,12 +84,7 @@ def xml_to_native(from_file: str, force_list_elements: list[str]=None, aliases: 
                         continue
                 path = [x[0] for x in lineage]
                 raise RuntimeError("This converter does not support complex content at path " + ".".join(path))
-            case [pulldom.PROCESSING_INSTRUCTION, node]:
-                log.debug(pulldom.PROCESSING_INSTRUCTION, node=node)
-            case [pulldom.IGNORABLE_WHITESPACE, node]:
-                log.debug(pulldom.IGNORABLE_WHITESPACE, node=node)
-            case None:
-                log.warn("<<out of bounds>>")
+            case [pulldom.END_DOCUMENT, _]:
                 break
     return root
 
@@ -101,7 +92,6 @@ def xml_to_native(from_file: str, force_list_elements: list[str]=None, aliases: 
 
 
 if __name__ == "__main__":
-    #native = xj.to_native2("sample/page-6.xml")
     # This prototype is used for all SP elements to make the resulting objects have the same keys for both
     # String and SP elements.  Combined with the alias, this means that we get a single collection of String
     # / SP elements in the correct order rather than 2 sibling sub-collections of each TextLine
