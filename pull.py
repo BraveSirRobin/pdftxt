@@ -102,9 +102,29 @@ if __name__ == "__main__":
     # this means that each TextLine maps to a collection of String/SP elements that
     # reflects the XML document order, rather than 2 sibling sub-collections of
     # SP / String.  e.g.
-    #  {"foo": [{"ID",...}, {"ID",...}]}  <--- Map all String/SP elements in one list
-    #
-    #  {"foo": {"String": [{"ID",...}]}, {"SP": [{"WIDTH",...}]}}  <-- instead of sublists
+
+    # LIKE THIS
+    # {"TextLine": {
+    #       ...
+    #       "String": [
+    #           {}, {}, {}, {}
+    #       ]
+    #   }
+    # }
+
+    # THIS WOULD BE THE DEFAULT OTHERWISE
+    # {"TextLine": {
+    #       ...
+    #       "String": [
+    #           {}, {}
+    #       ],
+    #       "SP": [
+    #           {}, {}
+    #       ]
+    #   }
+    # }
+
+
     sp_mask = {
         "ID": None,
         "CONTENT": None,
