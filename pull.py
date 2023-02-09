@@ -7,7 +7,7 @@ from pathlib import Path
 from defusedxml import pulldom
 
 
-def xml_to_native(from_file: Path, force_list_elements: list[str]=None, aliases: dict=None, protos: dict=None):
+def xml_to_native(from_file: Path, force_list_elements: list[str]=None, aliases: dict=None, proto_masks: dict=None):
     """Attempt a generic mapping of the given XML document to a native Python dict/list structure.
 
     Not all valid XML will work here, complex content is not supported.  Name clashes between attributes and child
@@ -18,14 +18,14 @@ def xml_to_native(from_file: Path, force_list_elements: list[str]=None, aliases:
     - Use ``force_list_elements`` to force named elements to be rendered as a list, even if there's just a single
     named sibling.
     - Use ``aliases`` to rename elements in the mapped dict
-    - Use protos to force a particular named element to always be mapped to a given dict structure, the default is
-    an empty dict
+    - Use proto_masks to force a particular named element to always be mapped to a given dict structure, the default is
+    an empty dict.  **the non-alises element name is used to detect when the prototype is applied**
 
     Args:
         from_file (str): XML data is in this file
         force_list_element (list[str], optional): Optional forced list map
         aliases (dict, optional): Optional aliases map
-        protos (dict, optional): Optional prototype objects map
+        proto_masks (dict, optional): Optional prototype objects map
     """
     def _push_lineage(key, item):
         nonlocal lineage, curr_node, curr_key
@@ -43,7 +43,7 @@ def xml_to_native(from_file: Path, force_list_elements: list[str]=None, aliases:
     if from_file.stat().st_size == 0:
         return {}
     aliases = {} if aliases is None else aliases
-    protos = {} if protos is None else protos
+    proto_masks = {} if proto_masks is None else proto_masks
     force_list_elements = [] if force_list_elements is None else force_list_elements
     xmldoc = pulldom.parse(str(from_file))
     root = curr_node = {}
@@ -53,7 +53,7 @@ def xml_to_native(from_file: Path, force_list_elements: list[str]=None, aliases:
         _event = xmldoc.getEvent()
         match _event:
             case ["START_ELEMENT", xml_node]:
-                myself = protos[xml_node.nodeName] if xml_node.nodeName in protos else {}
+                myself = proto_masks[xml_node.nodeName] if xml_node.nodeName in proto_masks else {}  # nodeName not aliased
                 myself = myself | {x: y for x, y in xml_node.attributes.items()}
                 node_name = aliases[xml_node.nodeName] if xml_node.nodeName in aliases else xml_node.nodeName
                 if node_name in curr_node:
@@ -97,10 +97,15 @@ def parse_command_line_args():
 
 
 if __name__ == "__main__":
-    # This prototype is used for all SP elements to make the resulting objects have the same keys for both
-    # String and SP elements.  Combined with the alias, this means that we get a single collection of String
-    # / SP elements in the correct order rather than 2 sibling sub-collections of each TextLine
-    prototype_sp = {
+    # This prototype mask is used for all SP elements to make the resulting objects
+    # have the same keys for both String and SP elements.  Combined with the alias,
+    # this means that each TextLine maps to a collection of String/SP elements that
+    # reflects the XML document order, rather than 2 sibling sub-collections of
+    # SP / String.  e.g.
+    #  {"foo": [{"ID",...}, {"ID",...}]}  <--- Map all String/SP elements in one list
+    #
+    #  {"foo": {"String": [{"ID",...}]}, {"SP": [{"WIDTH",...}]}}  <-- instead of sublists
+    sp_mask = {
         "ID": None,
         "CONTENT": None,
         "WC": None,
@@ -111,6 +116,6 @@ if __name__ == "__main__":
         cli_args.src_xml_file,
         force_list_elements=["String"],
         aliases={"SP": "String"},
-        protos={"SP": prototype_sp},
+        proto_masks={"SP": sp_mask},
     )
     json.dump(native, cli_args.dest_json_file.open("w"))
