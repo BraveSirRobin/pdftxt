@@ -1,16 +1,13 @@
 import json
 import logging
+import argparse
+from pathlib import Path
 
-import structlog
-from xml.dom import pulldom
-
-structlog.configure(
-    wrapper_class=structlog.make_filtering_bound_logger(logging.ERROR),
-)
-log = structlog.get_logger()
+#from xml.dom import pulldom
+from defusedxml import pulldom
 
 
-def xml_to_native(from_file: str, force_list_elements: list[str]=None, aliases: dict=None, protos: dict=None):
+def xml_to_native(from_file: Path, force_list_elements: list[str]=None, aliases: dict=None, protos: dict=None):
     """Attempt a generic mapping of the given XML document to a native Python dict/list structure.
 
     Not all valid XML will work here, complex content is not supported.  Name clashes between attributes and child
@@ -43,17 +40,19 @@ def xml_to_native(from_file: str, force_list_elements: list[str]=None, aliases: 
         else:
             curr_key, curr_node = None, root
 
+    if from_file.stat().st_size == 0:
+        return {}
     aliases = {} if aliases is None else aliases
     protos = {} if protos is None else protos
     force_list_elements = [] if force_list_elements is None else force_list_elements
-    xmldoc = pulldom.parse(from_file)
+    xmldoc = pulldom.parse(str(from_file))
     root = curr_node = {}
     curr_key = None
     lineage = [(None, root)]
     while True:
         _event = xmldoc.getEvent()
         match _event:
-            case [pulldom.START_ELEMENT, xml_node]:
+            case ["START_ELEMENT", xml_node]:
                 myself = protos[xml_node.nodeName] if xml_node.nodeName in protos else {}
                 myself = myself | {x: y for x, y in xml_node.attributes.items()}
                 node_name = aliases[xml_node.nodeName] if xml_node.nodeName in aliases else xml_node.nodeName
@@ -66,12 +65,9 @@ def xml_to_native(from_file: str, force_list_elements: list[str]=None, aliases: 
                 else:
                     curr_node[node_name] = myself
                 _push_lineage(node_name, myself)
-                log.debug(pulldom.START_ELEMENT, xml_node=xml_node)
-            case [pulldom.END_ELEMENT, xml_node]:
+            case ["END_ELEMENT", xml_node]:
                 _pop_lineage()
-                log.debug(pulldom.END_ELEMENT, xml_node=xml_node)
-            case [pulldom.CHARACTERS, xml_node]:
-                log.debug(pulldom.CHARACTERS, node=xml_node)
+            case ["CHARACTERS", xml_node]:
                 text = xml_node.nodeValue.strip()
                 if text == "":
                     continue
@@ -84,11 +80,20 @@ def xml_to_native(from_file: str, force_list_elements: list[str]=None, aliases: 
                         continue
                 path = [x[0] for x in lineage]
                 raise RuntimeError("This converter does not support complex content at path " + ".".join(path))
-            case [pulldom.END_DOCUMENT, _]:
+            case ["END_DOCUMENT", _]:
                 break
     return root
 
 
+def parse_command_line_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--src-xml-file", type=Path, required=True)
+    parser.add_argument("--dest-json-file", type=Path, required=True)
+    args = parser.parse_args()
+
+    if args.src_xml_file.exists() is False:
+        raise RuntimeError("file given in --src-xml-file cannot be found")
+    return args
 
 
 if __name__ == "__main__":
@@ -101,12 +106,11 @@ if __name__ == "__main__":
         "WC": None,
         "HEIGHT": None,
     }
+    cli_args = parse_command_line_args()
     native = xml_to_native(
-        "sample/page-6.xml",
+        cli_args.src_xml_file,
         force_list_elements=["String"],
         aliases={"SP": "String"},
         protos={"SP": prototype_sp},
     )
-    json_data = json.dumps(native)
-    log.info("eventual native", _is=native, json=json_data)
-    print(json_data)
+    json.dump(native, cli_args.dest_json_file.open("w"))
